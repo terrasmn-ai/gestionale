@@ -1,0 +1,24 @@
+# Due istanze separate (TLR e GPL) = stesso codice, due database, due valori di SERVIZI.
+# Per una sola istanza combinata usare SERVIZI=BOTH.
+x-env: &env
+  JWT_SECRET: ${JWT_SECRET:?imposta JWT_SECRET}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?imposta ADMIN_PASSWORD}
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_USER: gest, POSTGRES_PASSWORD: "${DB_PASSWORD:?imposta DB_PASSWORD}" }
+    volumes: [pgdata:/var/lib/postgresql/data, ./db/init:/docker-entrypoint-initdb.d:ro]
+  tlr:
+    build: .
+    restart: unless-stopped
+    ports: ["3001:3000"]
+    environment: { <<: *env, SERVIZI: TLR, DATABASE_URL: "postgres://gest:${DB_PASSWORD}@db:5432/gestionale_tlr" }
+    depends_on: [db]
+  gpl:
+    build: .
+    restart: unless-stopped
+    ports: ["3002:3000"]
+    environment: { <<: *env, SERVIZI: GPL, DATABASE_URL: "postgres://gest:${DB_PASSWORD}@db:5432/gestionale_gpl" }
+    depends_on: [db]
+volumes: { pgdata: {} }

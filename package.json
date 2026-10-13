@@ -1,0 +1,12 @@
+{
+  "name": "gestionale-tlr-gpl",
+  "private": true,
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "migrate": "npm -w server run migrate",
+    "dev:server": "npm -w server run dev",
+    "dev:web": "npm -w web run dev",
+    "test": "npm -w server test",
+    "build": "npm -w web run build"
+  }
+}
