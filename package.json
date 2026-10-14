@@ -7,6 +7,7 @@
     "dev:server": "npm -w server run dev",
     "dev:web": "npm -w web run dev",
     "test": "npm -w server test",
+    "demo": "npm -w server run demo",
     "build": "npm -w web run build"
   }
 }

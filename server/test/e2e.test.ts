@@ -70,7 +70,7 @@ describe('GPL: ciclo completo', () => {
     const mora = await ok('POST', '/api/crediti/mora', { servizio: 'GPL', alla_data: '2025-06-25', scrivi: true });
     expect(mora).toHaveLength(1); expect(mora[0].tasso_pct).toBeCloseTo(5.1, 5);   // GPL: interesse legale 1,6 + maggiorazione 3,5
     expect(mora[0].da_abbinare ?? mora[0].da_addebitare).toBeGreaterThan(0);
-    const imp = await ok('POST', '/api/incassi/import', { formato: 'poste', testo: `1;${d.totale};25/03/2025\n999;10,00`, data: '2025-03-20' });
+    const imp = await ok('POST', '/api/incassi/import', { formato: 'poste', testo: `1;${d.totale};25/03/2025\n999;10,00`, data: '2025-03-20', servizio: 'GPL' });
     expect(imp.abbinati).toBe(1); expect(imp.da_abbinare).toBe(1);
     expect((await ok('GET', `/api/documenti/${docId}`)).residuo).toBe(0);
   });
@@ -129,6 +129,12 @@ describe('TLR: defalco, crediti d\'imposta, bonus sociale', () => {
     const dB = await ok('GET', `/api/documenti/${documenti.find((d: any) => d.fornitura === 'TLRB').id}`);
     expect(dB.righe.some((x: any) => x.tipo_riga === 'bonus_sociale')).toBe(false);  // flusso scartato
     await ok('POST', `/api/fatturazione/${r.run_id}/conferma`);
+    // SECONDO PERIODO: il padre non è fatturabile ma le sue letture vanno comunque «consumate»
+    await ok('POST', '/api/letture/import', { testo: 'KP;2027-05-01;1600\nKA;2027-05-01;400\nKB;2027-05-01;200' });
+    const r2 = await ok('POST', '/api/fatturazione/prova', { servizio: 'TLR', data_documento: '2027-05-05', data_fino: '2027-05-01' });
+    const def2 = await ok('GET', `/api/fatturazione/${r2.run_id}/defalco`);
+    expect(def2.map((x: any) => [x.consumo_padre, x.consumo_proprio, x.quota_ripartita, x.consumo_fatturato])).toEqual([[600, 100, 200, 300], [600, 100, 200, 300]]);  // padre 600 = 1600−1000, non 1600
+    await ok('DELETE', `/api/fatturazione/${r2.run_id}`);
     const dich = await ok('GET', '/api/dichiarazioni/tlr-annuale?anno=2027');
     expect(dich.righe.reduce((s: number, x: any) => s + x.kwh_fatturati, 0)).toBe(1000);
   });

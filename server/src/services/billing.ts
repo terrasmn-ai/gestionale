@@ -21,10 +21,10 @@ async function consumiContatori(c: PoolClient, fornitura_ids: number[], dataFino
   const { rows: cont } = await c.query(`SELECT * FROM contatore WHERE fornitura_id = ANY($1) AND attivo`, [fornitura_ids]);
   for (const k of cont) {
     const { rows: base } = await c.query(
-      `SELECT data_lettura::text AS data, valore FROM lettura WHERE contatore_id=$1 AND documento_id IS NOT NULL AND NOT annullata ORDER BY data_lettura DESC, id DESC LIMIT 1`, [k.id]);
+      `SELECT data_lettura::text AS data, valore FROM lettura WHERE contatore_id=$1 AND (documento_id IS NOT NULL OR run_id IS NOT NULL) AND NOT annullata ORDER BY data_lettura DESC, id DESC LIMIT 1`, [k.id]);
     const b = base[0] ?? { data: k.data_lettura_iniziale, valore: k.lettura_iniziale };
     const { rows: ls } = await c.query(
-      `SELECT id, data_lettura::text AS data, valore FROM lettura WHERE contatore_id=$1 AND documento_id IS NULL AND NOT annullata AND data_lettura<=$2 AND data_lettura >= $3 ORDER BY data_lettura, id`,
+      `SELECT id, data_lettura::text AS data, valore FROM lettura WHERE contatore_id=$1 AND documento_id IS NULL AND run_id IS NULL AND NOT annullata AND data_lettura<=$2 AND data_lettura >= $3 ORDER BY data_lettura, id`,
       [k.id, dataFino, b.data ?? '1900-01-01']);
     if (!ls.length) {
       if (stima && b.data) {
@@ -167,7 +167,9 @@ export async function creaProva(input: RunInput, utente: string) {
     }
     for (const d of defalcoRows) await c.query(
       `INSERT INTO defalco_ripartizione(run_id,contatore_padre_id,contatore_figlio_id,consumo_padre,consumo_figli_tot,differenza,consumo_proprio,quota_ripartita,consumo_fatturato) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, d);
-    await c.query(`UPDATE fatturazione_run SET n_documenti=$2, totale=$3, anomalie=$4 WHERE id=$1`, [run.id, nDoc, r2(totRun), JSON.stringify(anomalie)]);
+    // letture dei contatori non fatturabili (padre) usate nel defalco: verranno marcate come consumate alla conferma
+    const lettureConsumate = consumi.filter(x => !x.fatturabile).flatMap(x => x.letture_ids);
+    await c.query(`UPDATE fatturazione_run SET n_documenti=$2, totale=$3, anomalie=$4, letture_ids=$5 WHERE id=$1`, [run.id, nDoc, r2(totRun), JSON.stringify(anomalie), lettureConsumate]);
     return { run_id: run.id, n_documenti: nDoc, totale: r2(totRun), anomalie };
   }, utente);
 }
@@ -194,6 +196,7 @@ export async function confermaRun(runId: number, utente: string) {
       for (const s of d.dettaglio?.stime ?? []) await c.query(
         `INSERT INTO lettura(contatore_id,data_lettura,valore,tipo,origine,documento_id,anomalia) VALUES ($1,$2,$3,'stimata','stima',$4,'lettura_stimata')`, [s.contatore_id, s.data, s.valore, d.id]);
     }
+    if (run.letture_ids?.length) await c.query(`UPDATE lettura SET run_id=$1 WHERE id = ANY($2)`, [runId, run.letture_ids]);
     await c.query(`UPDATE fatturazione_run SET stato='effettivo', confermato_il=now() WHERE id=$1`, [runId]);
     return { run_id: runId, documenti_emessi: docs.length };
   }, utente);

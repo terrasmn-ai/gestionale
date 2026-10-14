@@ -4,6 +4,30 @@ Web app (Node/TypeScript + React) su PostgreSQL. **Un solo codice, istanze separ
 restringono menu e API; le differenze tra i due servizi sono **configurazione** (tariffe, parametri, cicli, categorie), non codice duplicato.
 Le specifiche di partenza sono in `docs/`.
 
+## Provalo in 3 minuti (Windows / Mac / Linux, senza installare database)
+
+1. Installa [Node.js 22 LTS](https://nodejs.org) (serve solo questo).
+2. Scarica il progetto (`git clone` oppure *Code → Download ZIP* dal branch `claude/epic-mccarthy-cxyhvf`) e apri un terminale nella cartella.
+3. Esegui:
+   ```bash
+   npm install
+   npm run demo
+   ```
+4. Apri **http://localhost:3000** — utente `admin`, password `admin`.
+
+`npm run demo` avvia un PostgreSQL incorporato (nella cartella `.demo-data`, la prima volta scarica i binari), crea lo schema, carica i dati demo e parte.
+Per azzerare la demo: fermare con CTRL+C e cancellare la cartella `.demo-data`.
+
+**Cosa provare** (dati demo: 5 utenze GPL, 4 TLR con contatore padre + 2 figli, fatturazione di luglio già emessa con alcuni insoluti):
+- *Fatturazione → Elaborazioni*: servizio TLR, «letture fino al» **30/09/2026**, «Elabora in prova» → apri l'elaborazione, **Stampa** una fattura, **Verifica defalco** (differenza padre−figli ripartita), poi *Conferma → effettivo*. Stesso per GPL (coefficiente C, accisa, sconto montano F.C. IVA).
+- *Crediti e incassi*: elenco insoluti, **Simula mora** (BCE+3,5% TLR; esenti gli enti pubblici), elenco solleciti, import incassi Poste (`numero;importo;data`).
+- *Dichiarazioni e report*: accise mensile/annuale GPL, dichiarazione annuale TLR, giornale IVA… (con CSV per Excel).
+- *Configurazione → Regole tariffarie*: cambiare uno scaglione o un prezzo, salvare come nuova versione e rielaborare.
+- *Letture → Import letture*: scaricare l'elenco utenze, incollare letture `matricola;data;valore`.
+- *Documenti*: **XML SDI** di una fattura emessa, **Storna** con nota di credito.
+
+I dati demo (nomi, tariffe, accise, crediti d'imposta, conti SAP) sono inventati/segnaposto.
+
 ## Avvio
 
 ```bash
@@ -12,6 +36,7 @@ npm install
 npm run build            # frontend
 npm -w server run seed   # migrazioni + configurazione base + dati demo (aggiungere -- --no-demo per solo configurazione)
 npm -w server start      # http://localhost:3000   utente admin / password admin (variabile ADMIN_PASSWORD)
+npm run demo             # alternativa: Postgres incorporato + dati demo + server
 npm test                 # 15 test del motore + 11 end-to-end su Postgres reale (TEST_DATABASE_URL, db gestionale_test)
 ```
 Sviluppo: `npm run dev:server` e `npm run dev:web` (proxy su :3000). Produzione: `docker compose up` (due istanze + un Postgres; richiede `JWT_SECRET`, `ADMIN_PASSWORD`, `DB_PASSWORD`).
@@ -43,7 +68,8 @@ modificabile da *Configurazione → Regole tariffarie*: nessuno sviluppo per cam
 5. **Quota fissa** per periodo = mesi tra letture (mesi interi + frazione a 30 gg).
 6. **Defalco**: se Σ figli > padre o i figli hanno consumo zero, nulla viene ripartito e viene segnalata un'anomalia nel run.
 7. **Valori numerici del seed** (tariffe, accisa, crediti, kg/Smc, conti SAP) sono **segnaposto**.
-8. Importi `numeric` a 2 decimali per riga, arrotondamento half-up per riga.
+8. **Limite noto**: una nota di credito libera le letture dei contatori fatturabili ma non quelle del contatore padre già «consumate» dal defalco; un ricalcolo dopo storno di una fattura TLR in defalco va verificato a mano.
+9. Importi `numeric` a 2 decimali per riga, arrotondamento half-up per riga.
 
 ## Da definire con voi (non blocca lo sviluppo, ma serve per andare in esercizio)
 

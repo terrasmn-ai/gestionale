@@ -76,7 +76,8 @@ export function parseBanca(testo: string, canale = 'bonifico'): RigaIncasso[] {
 }
 
 /** Registra gli incassi e prova l'abbinamento automatico per numero fattura (con anno opzionale) e importo. */
-export async function importaIncassi(righe: RigaIncasso[], mazzettaId: number | null, utente: string) {
+/** `servizio` restringe l'abbinamento: la numerazione è per servizio, senza filtro «fattura 1» può essere ambigua (e resta da abbinare). */
+export async function importaIncassi(righe: RigaIncasso[], mazzettaId: number | null, utente: string, servizio?: string) {
   return tx(async c => {
     let abbinati = 0, daAbbinare = 0;
     const esito: any[] = [];
@@ -85,7 +86,7 @@ export async function importaIncassi(righe: RigaIncasso[], mazzettaId: number | 
       let doc: any = null;
       for (const t of tokens) {
         const { rows } = await c.query(
-          `SELECT * FROM v_documento_residuo WHERE stato='emesso' AND tipo<>'nota_credito' AND numero=$1 AND residuo>0.005 AND ($2::int IS NULL OR anno=$2) ORDER BY anno DESC`, [t.numero, t.anno]);
+          `SELECT * FROM v_documento_residuo WHERE stato='emesso' AND tipo<>'nota_credito' AND numero=$1 AND residuo>0.005 AND ($2::int IS NULL OR anno=$2) AND ($3::text IS NULL OR servizio::text=$3) ORDER BY anno DESC`, [t.numero, t.anno, servizio ?? null]);
         if (rows.length === 1 || (rows.length > 1 && t.anno === null && rows[0].anno !== rows[1].anno)) { doc = rows[0]; break; }
       }
       const imp = isFinite(r.importo) ? r.importo : doc?.residuo ?? 0;

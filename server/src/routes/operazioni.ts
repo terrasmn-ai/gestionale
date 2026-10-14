@@ -89,7 +89,7 @@ export function registraOperazioni(app: FastifyInstance) {
       `SELECT f.codice AS fornitura, a.denominazione, k.matricola, l.data_lettura::text AS data, l.valore, l.tipo, l.anomalia,
               l.valore - COALESCE(LAG(l.valore) OVER (PARTITION BY k.id ORDER BY l.data_lettura, l.id), k.lettura_iniziale) AS consumo_grezzo
          FROM lettura l JOIN contatore k ON k.id=l.contatore_id JOIN fornitura f ON f.id=k.fornitura_id JOIN anagrafica a ON a.id=f.anagrafica_id
-        WHERE l.documento_id IS NULL AND NOT l.annullata AND f.servizio=$1 ORDER BY f.codice, l.data_lettura`, [srv(q.servizio)]);
+        WHERE l.documento_id IS NULL AND l.run_id IS NULL AND NOT l.annullata AND f.servizio=$1 ORDER BY f.codice, l.data_lettura`, [srv(q.servizio)]);
     return q.formato === 'csv' ? csvReply(rep, 'letture_da_fatturare.csv', toCsv(rows)) : rows;
   });
 
@@ -236,7 +236,7 @@ ${ins.length ? `<p class=k>Fatture scadute non risultano pagate: ${ins.map(i => 
        FROM v_documento_residuo d JOIN anagrafica a ON a.id=d.anagrafica_id WHERE d.stato='emesso' AND d.tipo<>'nota_credito' AND d.residuo>0.005 AND d.scadenza<CURRENT_DATE ORDER BY d.scadenza LIMIT 1000`)).rows);
   app.post('/api/incassi/import', { preHandler: amm }, async req => {
     const b = req.body as any; const righe = b.formato === 'poste' ? parsePoste(String(b.testo), b.data ?? new Date().toISOString().slice(0, 10)) : parseBanca(String(b.testo), b.canale);
-    return importaIncassi(righe, b.mazzetta_id ?? null, utenteDi(req).username);
+    return importaIncassi(righe, b.mazzetta_id ?? null, utenteDi(req).username, b.servizio ? srv(b.servizio) : undefined);
   });
   app.post('/api/incassi/:id/abbina', { preHandler: amm }, async req => abbinaManuale(Number((req.params as any).id), (req.body as any).allocazioni, utenteDi(req).username));
   app.get('/api/mazzette/:id/riepilogo', async req => (await pool.query(
